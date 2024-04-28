@@ -20,7 +20,7 @@ if ($conn->connect_error) {
 }
 
 // Create SQL query to fetch roomQRStatus and roomQRCode for the requested roomId
-$sql = "SELECT roomQRStatus, roomQRCode FROM roomQR WHERE roomId = '$1'";
+$sql = "SELECT roomQRStatus, roomQRCode FROM roomQR WHERE roomId = '1'";
 
 $result = $conn->query($sql);
 

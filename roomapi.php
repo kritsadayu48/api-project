@@ -24,13 +24,27 @@ $result = $conn->query($sql);
 if ($result->num_rows > 0) {
     $room = array();
     // เก็บข้อมูลห้องในรูปแบบของ Array
-    while($row = $result->fetch_assoc()) {
+    while ($row = $result->fetch_assoc()) {
+        $roomId = $row['roomId'];
+        $checkBookingSql = "SELECT * FROM booking WHERE roomId = '$roomId'";
+        $bookingResult = $conn->query($checkBookingSql);
+
+        // หากห้องไม่มีการจองอยู่ ให้เปลี่ยนสถานะเป็น Available
+        if ($bookingResult->num_rows == 0) {
+            $row['statusRoom'] = 'Available'; // อัปเดตสถานะห้องในข้อมูลที่ส่งกลับไปยัง Client
+            $updateRoomStatusSql = "UPDATE room SET statusRoom = 'Available' WHERE roomId = '$roomId'";
+            if ($conn->query($updateRoomStatusSql) !== TRUE) {
+                echo "Error updating room status: " . $conn->error;
+            }
+        }
         $room[] = $row;
     }
+
     // ส่งค่า JSON กลับไปยัง Client
     echo json_encode($room);
 } else {
     echo "0 results";
 }
+
 $conn->close();
 ?>

@@ -2,17 +2,20 @@
 // Read JSON data from request
 $data = json_decode(file_get_contents('php://input'), true);
 
-// Get roomId from JSON data
+// Get roomId, custId, and scannedCode from JSON data
 $roomId = $data['roomId'];
+$custId = $data['custId'];
+$scannedCode = $data['scannedCode'];
 
-// Perform action based on roomId
-// Example: Update status from 1 to 0
-// Replace this with your actual database update logic
-// สมมติว่าคุณใช้ MySQL ในการเก็บข้อมูล
-// และมีตารางชื่อว่า rooms ที่มีคอลัมน์ชื่อว่า roomQRStatus เพื่อเก็บสถานะของห้อง
-$servername = "sautechnology.com"; 
-$username = "u231198616_s6319410013"; 
-$password = "S@u6319410013"; 
+// Validate inputs to prevent SQL injection
+$roomId = filter_var($roomId, FILTER_SANITIZE_STRING);
+$custId = filter_var($custId, FILTER_SANITIZE_STRING);
+$scannedCode = filter_var($scannedCode, FILTER_SANITIZE_STRING);
+
+// Database credentials
+$servername = "sautechnology.com";
+$username = "u231198616_s6319410013";
+$password = "S@u6319410013";
 $dbname = "u231198616_s6319410013_db";
 
 // Create connection
@@ -23,34 +26,41 @@ if ($conn->connect_error) {
   die("Connection failed: " . $conn->connect_error);
 }
 
-// Update room status from 1 to 0 for the specified roomId
-$sql = "UPDATE roomQR SET roomQRStatus = 0 WHERE roomId = '$roomId'";
+// SQL to check if the scanned QR code matches the expected QR code
+$sql = "SELECT roomQRCode FROM roomQR WHERE roomId = ? AND custId = ?";
 
-if ($conn->query($sql) === TRUE) {
-  // Update successful
-  $response = array('status' => 'success');
-} else {
-  // Update failed
-  $response = array('status' => 'error', 'message' => 'Failed to update room status');
-}
-
-// สร้างคำสั่ง SQL เพื่อดึงข้อมูลของห้องที่ร้องขอ
-$sql = "SELECT roomQRStatus FROM roomQR WHERE roomId = '$roomId'";
-
-$result = $conn->query($sql);
+// Prepare and bind
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ss", $roomId, $custId);
+$stmt->execute();
+$result = $stmt->get_result();
 
 if ($result->num_rows > 0) {
-  // ถ้าพบข้อมูล
   $row = $result->fetch_assoc();
-  $roomQRStatus = $row["roomQRStatus"];
-  $response = array('status' => 'success', 'roomQRStatus' => $roomQRStatus);
+  $expectedQRCode = $row['roomQRCode'];
+
+  if ($scannedCode === $expectedQRCode) {
+    // QR Code is correct, update the room status or perform some action
+    $updateSql = "UPDATE roomQR SET roomQRStatus = 0 WHERE roomId = ? AND custId = ?";
+    $updateStmt = $conn->prepare($updateSql);
+    $updateStmt->bind_param("ss", $roomId, $custId);
+    if ($updateStmt->execute()) {
+      $response = array('status' => 'success', 'message' => 'Room unlocked successfully');
+    } else {
+      $response = array('status' => 'error', 'message' => 'Failed to unlock room');
+    }
+    $updateStmt->close();
+  } else {
+    // QR Code does not match
+    $response = array('status' => 'error', 'message' => 'Invalid or incorrect QR Code');
+  }
 } else {
-  // ถ้าไม่พบข้อมูล
-  $response = array('status' => 'error', 'message' => 'Room not found');
+  // No data found for custId and roomId
+  $response = array('status' => 'error', 'message' => 'No matching room found for the provided customer and room ID');
 }
-// Close connection
+
+$stmt->close();
 $conn->close();
 
 // Send response back to the app
 echo json_encode($response);
-?>

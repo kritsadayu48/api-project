@@ -1,43 +1,46 @@
 <?php
 
-// ทำการเชื่อมต่อกับฐานข้อมูล MySQL
-$servername = "sautechnology.com"; // เปลี่ยนเป็นโฮสต์ของเซิร์ฟเวอร์ MySQL ของคุณ
-$username = "u231198616_s6319410013"; // เปลี่ยนเป็นชื่อผู้ใช้ MySQL ของคุณ
-$password = "S@u6319410013"; // เปลี่ยนเป็นรหัสผ่าน MySQL ของคุณ
-$dbname = "u231198616_s6319410013_db"; // เปลี่ยนเป็นชื่อฐานข้อมูล MySQL ของคุณ
+// Establish connection to the MySQL database
+$servername = "sautechnology.com"; // Replace with your MySQL server host
+$username = "u231198616_s6319410013"; // Replace with your MySQL username
+$password = "S@u6319410013"; // Replace with your MySQL password
+$dbname = "u231198616_s6319410013_db"; // Replace with your MySQL database name
 
-// สร้างการเชื่อมต่อ
+// Create connection
 $conn = new mysqli($servername, $username, $password, $dbname);
 
-$custId =  $_REQUEST['custId'];
+$custId = $_REQUEST['custId'];
 
-
-// ตรวจสอบการเชื่อมต่อ
+// Check connection
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// สร้างคำสั่ง SQL เพื่อดึงข้อมูลการจอง
-$sql = "SELECT * FROM booking where  custid='".$custId."' ";
+// Create SQL command to retrieve booking data, roomQR status, and room type
+$sql = "SELECT b.*, r.roomQRStatus, rm.roomType 
+        FROM booking AS b
+        LEFT JOIN roomQR AS r ON b.roomId = r.roomId
+        LEFT JOIN room AS rm ON b.roomId = rm.roomId
+        WHERE b.custId = '" . $conn->real_escape_string($custId) . "'";
 
-// ดึงข้อมูลจากฐานข้อมูล
+// Execute query
 $result = $conn->query($sql);
 
-// ตรวจสอบว่ามีข้อมูลหรือไม่
+// Check if there are any results
 if ($result->num_rows > 0) {
-    // สร้างอาร์เรย์เพื่อเก็บข้อมูลการจอง
+    // Initialize an array to store booking details
     $bookings = array();
-    // เก็บข้อมูลการจองในอาร์เรย์
+    // Store booking details in array
     while($row = $result->fetch_assoc()) {
         $bookings[] = $row;
     }
-    // แปลงข้อมูลเป็นรูปแบบ JSON และส่งกลับไปยังแอพพลิเคชัน
+    // Convert booking details to JSON format and return to application
     echo json_encode($bookings);
 } else {
-    // ถ้าไม่มีข้อมูล ส่งข้อความว่างกลับไปยังแอพพลิเคชัน
+    // If no data is found, return an empty array
     echo json_encode(array());
 }
 
-// ปิดการเชื่อมต่อฐานข้อมูล MySQL
+// Close database connection
 $conn->close();
 ?>

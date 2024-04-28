@@ -26,30 +26,59 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $bookStatusInOut = $_POST['bookStatusInOut'];
             $custId = $_POST['custId'];
             $roomId = $_POST['roomId'];
+            $roomStatus = $_POST['roomStatus'];
 
-            // Prepare SQL command
-            $sql = "INSERT INTO booking (bookDate, bookCheckinDate, bookCheckoutDate, bookPrice, bookStatusPaid, bookStatusInOut, custId, roomId) VALUES (:bookDate, :bookCheckinDate, :bookCheckoutDate, :bookPrice, :bookStatusPaid, :bookStatusInOut, :custId, :roomId)";
-            $stmt = $conn->prepare($sql);
+            // Check if the room is available for booking
+            $checkAvailabilitySql = "SELECT * FROM booking WHERE roomId = :roomId AND ((bookCheckinDate BETWEEN :bookCheckinDate AND :bookCheckoutDate) OR (bookCheckoutDate BETWEEN :bookCheckinDate AND :bookCheckoutDate))";
+            $checkAvailabilityStmt = $conn->prepare($checkAvailabilitySql);
+            $checkAvailabilityStmt->bindParam(':roomId', $roomId);
+            $checkAvailabilityStmt->bindParam(':bookCheckinDate', $bookCheckinDate);
+            $checkAvailabilityStmt->bindParam(':bookCheckoutDate', $bookCheckoutDate);
+            $checkAvailabilityStmt->execute();
+            $existingBookings = $checkAvailabilityStmt->fetchAll();
 
-            // Bind parameters
-            $stmt->bindParam(':bookDate', $bookDate);
-            $stmt->bindParam(':bookCheckinDate', $bookCheckinDate);
-            $stmt->bindParam(':bookCheckoutDate', $bookCheckoutDate);
-            $stmt->bindParam(':bookPrice', $bookPrice);
-            $stmt->bindParam(':bookStatusPaid', $bookStatusPaid);
-            $stmt->bindParam(':bookStatusInOut', $bookStatusInOut);
-            $stmt->bindParam(':custId', $custId);
-            $stmt->bindParam(':roomId', $roomId);
+            if (count($existingBookings) > 0) {
+                echo "Duplicate Booking";
+            } else {
+                // Prepare SQL command
+                $sql = "INSERT INTO booking (bookDate, bookCheckinDate, bookCheckoutDate, bookPrice, bookStatusPaid, bookStatusInOut, custId, roomId) VALUES (:bookDate, :bookCheckinDate, :bookCheckoutDate, :bookPrice, :bookStatusPaid, :bookStatusInOut, :custId, :roomId)";
+                $stmt = $conn->prepare($sql);
 
-            // Execute SQL command
-            $stmt->execute();
+                // Bind parameters
+                $stmt->bindParam(':bookDate', $bookDate);
+                $stmt->bindParam(':bookCheckinDate', $bookCheckinDate);
+                $stmt->bindParam(':bookCheckoutDate', $bookCheckoutDate);
+                $stmt->bindParam(':bookPrice', $bookPrice);
+                $stmt->bindParam(':bookStatusPaid', $bookStatusPaid);
+                $stmt->bindParam(':bookStatusInOut', $bookStatusInOut);
+                $stmt->bindParam(':custId', $custId);
+                $stmt->bindParam(':roomId', $roomId);
 
-            // Get the last inserted id
-            $bookId = $conn->lastInsertId();
+                // Execute SQL command
+                $stmt->execute();
 
-            // Send the bookId back to the application
-            echo $bookId;
-        } catch(PDOException $e) {
+                // Get the last inserted id
+                $bookId = $conn->lastInsertId();
+
+                // Update room status to 'Booked' in room table
+                $updateRoomStatusSql = "UPDATE room SET statusRoom = 'Booked' WHERE roomId = :roomId";
+                $updateRoomStatusStmt = $conn->prepare($updateRoomStatusSql);
+                $updateRoomStatusStmt->bindParam(':roomId', $roomId);
+                $updateRoomStatusStmt->execute();
+
+                // Check if checkout date has passed
+                if (strtotime($bookCheckoutDateTime) < time()) {
+                    // Update room status to 'Available' if checkout date has passed
+                    $updateRoomAvailabilitySql = "UPDATE room SET statusRoom = 'Available' WHERE roomId = :roomId";
+                    $updateRoomAvailabilityStmt = $conn->prepare($updateRoomAvailabilitySql);
+                    $updateRoomAvailabilityStmt->bindParam(':roomId', $roomId);
+                    $updateRoomAvailabilityStmt->execute();
+                }
+
+                // Send the bookId back to the application
+                echo $bookId;
+            }
+        } catch (PDOException $e) {
             echo "Connection failed: " . $e->getMessage();
         }
     } else {
@@ -60,4 +89,3 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // If data is not sent via POST method
     echo "Invalid request method";
 }
-?>
